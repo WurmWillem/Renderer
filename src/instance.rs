@@ -1,42 +1,66 @@
-use crate::{consts::*, draw_wireframe_triangle, project_vertex};
-use cgmath::Matrix4;
-use image::{Rgb, RgbImage};
+use crate::{consts::*, draw_wireframe_triangle};
+use cgmath::*;
 
 pub struct Instance {
     model: Model,
     verts: Vertices,
     triangles: Vec<Indices>,
-    pos: Vec3,
+    pub trans: Transform,
 }
 impl Instance {
-    pub fn new(model: Model, pos: Vec3) -> Self {
+    pub fn new(model: Model, translation: Vec3, scale: f64) -> Self {
+        let trans = Transform::new(translation, scale);
         Self {
             model,
             verts: model.get_verts(),
             triangles: model.get_indices(),
-            pos,
+            trans,
         }
     }
     pub fn Render(&self, frame: &mut [u8]) {
-        let translation = Vec3::new(-1.5, 0., 7.);
-
-        /*let value = 1.;
-        let m = Matrix4::new(
-            value, value, value, value, value, value, value, value, value, value, value, value, value,
-            value, value, value,
-        );*/
-        //print_matrix(Matrix4::lo);
-
         let mut projected = Vec::new();
         for vert in &self.verts {
-            let vert_pos = vert + translation + self.pos;
-            projected.push(project_vertex(vert_pos));
+            let mut vert = *vert;
+            self.trans.apply_transform(&mut vert);
+            projected.push(project_vertex(vert));
         }
 
         for tri in &self.triangles {
             render_triangle(*tri, &projected, frame, GREEN);
         }
     }
+}
+
+pub struct Transform {
+    pub translation: Vec3,
+    pub scale: f64,
+    pub rot: f64,
+}
+impl Transform {
+    fn new(translation: Vec3, scale: f64) -> Self {
+        Self {
+            translation,
+            scale,
+            rot: 0.
+        }
+    }
+    fn apply_transform(&self, vert: &mut Vec3) {
+        let default_transl = Vec3::new(-2., 0., 7.);
+        let rot: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot));
+
+        *vert = rot.rotate_vector(*vert) * self.scale;
+        *vert += self.translation + default_transl;
+    }
+}
+
+fn render_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: [u8; 3]) {
+    draw_wireframe_triangle(
+        projected[tri.0],
+        projected[tri.1],
+        projected[tri.2],
+        frame,
+        color,
+    );
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -82,27 +106,20 @@ impl Model {
     }
 }
 
-pub fn render_object(verts: &Vec<Vec3>, tri_indices: &Vec<Indices>, frame: &mut [u8]) {
-    let translation = Vec3::new(-1.5, 0., 7.);
-    
-    let mut projected = Vec::new();
-    for vert in verts {
-        projected.push(project_vertex(*vert + translation))
-    }
-
-    for tri in tri_indices {
-        render_triangle(*tri, &projected, frame, GREEN);
-    }
+fn project_vertex(vert: Vec3) -> Vec2 {
+    viewport_to_canvas(vert.x * D / vert.z, vert.y * D / vert.z)
 }
 
-fn render_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: Rgb<u8>) {
-    draw_wireframe_triangle(
-        projected[tri.0],
-        projected[tri.1],
-        projected[tri.2],
-        frame,
-        color,
-    );
+fn viewport_to_canvas(x: f64, y: f64) -> Vec2 {
+    let (canvas_size, viewport_size) = (CANVAS_SIZE as f64, VIEWPORT_SIZE as f64);
+    Vec2::new(
+        x * canvas_size / viewport_size,
+        y * canvas_size / viewport_size,
+    )
+}
+
+fn pr<T: std::fmt::Display>(s: T) {
+    println!("{}", s);
 }
 
 fn print_matrix(mat: Matrix4<f32>) {
