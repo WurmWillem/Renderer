@@ -7,7 +7,100 @@ mod instancing;
 use consts::*;
 use instancing::*;
 
-fn main() {
+use log::error;
+use pixels::{Error, Pixels, SurfaceTexture};
+use winit::dpi::LogicalSize;
+use winit::event::{Event, VirtualKeyCode};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::WindowBuilder;
+use winit_input_helper::WinitInputHelper;
+
+//const WIDTH: u32 = 640;
+//const HEIGHT: u32 = 640;
+const BOX_SIZE: i16 = 64;
+
+fn main() -> Result<(), Error> {
+    env_logger::init();
+    let event_loop = EventLoop::new();
+    let mut input = WinitInputHelper::new();
+
+    let window = {
+        let size = LogicalSize::new(CANVAS_SIZE as f64, CANVAS_SIZE as f64);
+        WindowBuilder::new()
+            .with_title("Hello Pixels")
+            .with_inner_size(size)
+            .with_min_inner_size(size)
+            .build(&event_loop)
+            .unwrap()
+    };
+
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        Pixels::new(CANVAS_SIZE, CANVAS_SIZE, surface_texture)?
+    };
+
+    let instances = vec![
+        Instance::new(Model::Cube, Vec3::new(0., 0., 0.)),
+        //Instance::new(Model::Cube, Vec3::new(2.5, 0., -1.)),
+    ];
+    let p0 = Vec2::new(0., 0.);
+    let p1 = Vec2::new(150., 150.);
+
+    event_loop.run(move |event, _, control_flow| {
+        // Draw the current frame
+        if let Event::RedrawRequested(_) = event {
+            //show_individual_pixels(pixels.get_frame_mut());
+            draw_line(p0, p1, pixels.get_frame_mut(), GREEN);
+            for instance in &instances {
+                //instance.Render(pixels.get_frame_mut());
+            }
+
+            if pixels
+                .render()
+                .map_err(|e| error!("pixels.render() failed: {}", e))
+                .is_err()
+            {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+        }
+
+        // Handle input events
+        if input.update(&event) {
+            // Close events
+            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+            // Resize the window
+            if let Some(size) = input.window_resized() {
+                pixels.resize_surface(size.width, size.height);
+            }
+            // Update internal state and request a redraw
+            window.request_redraw();
+        }
+    });
+}
+
+fn show_individual_pixels(frame: &mut [u8]) {
+    let mut pog = true;
+    for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
+        if i % 64 == 0 {
+            pog = !pog;
+        }
+        let rgba = if pog {
+            [0x48, 0xb2, 0xe8, 0xff]
+        } else {
+            [0x5e, 0x48, 0xe8, 0xff]
+        };
+        pog = !pog;
+
+        pixel.copy_from_slice(&rgba);
+    }
+}
+
+/*fn main() {
     let mut canvas: RgbImage = ImageBuffer::new(CANVAS_SIZE, CANVAS_SIZE);
     canvas.fill(220);
 
@@ -17,21 +110,13 @@ fn main() {
     ];
 
     for instance in &instances {
-        instance.Render(&mut canvas);
+        //instance.Render(&mut canvas);
     }
 
-    //let point_mult = 1.;
-    //let p0 = Vec2::new(-50., 240.) * point_mult;
-    //let p1 = Vec2::new(120., 50.) * point_mult;
-    //let p2 = Vec2::new(-250., -200.) * point_mult;
-    //let h = (0.3, 0., 1.);
-
-    //draw_triangle(p0, p1, p2, &mut canvas, GREEN);
-    //draw_shaded_triangle(p0, p1, p2, h, &mut canvas, GREEN);
-    //draw_wireframe_triangle(p0, p1, p2, &mut canvas, WHITE);
+    
 
     canvas.save("result.png").unwrap();
-}
+}*/
 
 fn draw_shaded_triangle(
     mut p0: Vec2,
@@ -138,7 +223,7 @@ fn draw_triangle(mut p0: Vec2, mut p1: Vec2, mut p2: Vec2, canvas: &mut RgbImage
     }
 }
 
-fn draw_line(mut p0: Vec2, mut p1: Vec2, canvas: &mut RgbImage, color: Rgb<u8>) {
+fn draw_line(mut p0: Vec2, mut p1: Vec2, frame: &mut [u8], color: Rgb<u8>) {
     if (p1.x - p0.x).abs() > (p1.y - p0.y).abs() {
         if p0.x > p1.x {
             swap(&mut p0, &mut p1);
@@ -152,8 +237,12 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, canvas: &mut RgbImage, color: Rgb<u8>) 
         for x in (x0 as i32)..(x1 as i32 + 1) {
             let x_to_draw = (x + CANVAS_SIZE as i32 / 2) as u32;
             let y_to_draw = (-ys[(x - x0 as i32) as usize] + CANVAS_SIZE as f32 / 2.) as u32;
-
-            canvas.put_pixel(x_to_draw, y_to_draw, color);
+            //println!("{}", frame.len());
+            //println!("{}", x_y_to_i(x_to_draw, y_to_draw) * 4 + 3);
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4] = color.0[0];
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 1] = color.0[1];
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 2] = color.0[2];
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 3] = 0xff;
         }
     } else {
         if p0.y > p1.y {
@@ -169,15 +258,22 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, canvas: &mut RgbImage, color: Rgb<u8>) 
             let x_to_draw = (xs[(y - y0 as i32) as usize] + CANVAS_SIZE as f32 / 2.) as u32;
             let y_to_draw = (-y + CANVAS_SIZE as i32 / 2) as u32;
 
-            canvas.put_pixel(x_to_draw, y_to_draw, color);
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4] = color.0[0];
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 1] = color.0[1];
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 2] = color.0[2];
+            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 3] = 0xff;
         }
     }
 }
 
-fn draw_wireframe_triangle(p0: Vec2, p1: Vec2, p2: Vec2, canvas: &mut RgbImage, color: Rgb<u8>) {
-    draw_line(p0, p1, canvas, color);
-    draw_line(p1, p2, canvas, color);
-    draw_line(p2, p0, canvas, color);
+fn x_y_to_i(x: u32, y: u32) -> usize {
+    (y * x + x) as usize
+}
+
+fn draw_wireframe_triangle(p0: Vec2, p1: Vec2, p2: Vec2, frame: &mut [u8], color: Rgb<u8>) {
+    draw_line(p0, p1, frame, color);
+    draw_line(p1, p2, frame, color);
+    draw_line(p2, p0, frame, color);
 }
 
 fn interpolate(i0: f32, d0: f32, i1: f32, d1: f32) -> Vec<f32> {

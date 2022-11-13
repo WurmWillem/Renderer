@@ -17,14 +17,14 @@ impl Instance {
             pos,
         }
     }
-    pub fn Render(&self, canvas: &mut RgbImage) {
+    pub fn Render(&self, frame: &mut [u8]) {
         let translation = Vec3::new(-1.5, 0., 7.);
 
-        let value = 1.;
+        /*let value = 1.;
         let m = Matrix4::new(
             value, value, value, value, value, value, value, value, value, value, value, value, value,
             value, value, value,
-        );
+        );*/
         //print_matrix(Matrix4::lo);
 
         let mut projected = Vec::new();
@@ -34,7 +34,7 @@ impl Instance {
         }
 
         for tri in &self.triangles {
-            render_triangle(*tri, &projected, canvas, GREEN);
+            render_triangle(*tri, &projected, frame, GREEN);
         }
     }
 }
@@ -82,7 +82,7 @@ impl Model {
     }
 }
 
-pub fn render_object(verts: &Vec<Vec3>, tri_indices: &Vec<Indices>, canvas: &mut RgbImage) {
+pub fn render_object(verts: &Vec<Vec3>, tri_indices: &Vec<Indices>, frame: &mut [u8]) {
     let translation = Vec3::new(-1.5, 0., 7.);
     
     let mut projected = Vec::new();
@@ -91,16 +91,16 @@ pub fn render_object(verts: &Vec<Vec3>, tri_indices: &Vec<Indices>, canvas: &mut
     }
 
     for tri in tri_indices {
-        render_triangle(*tri, &projected, canvas, GREEN);
+        render_triangle(*tri, &projected, frame, GREEN);
     }
 }
 
-fn render_triangle(tri: Indices, projected: &Vec<Vec2>, canvas: &mut RgbImage, color: Rgb<u8>) {
+fn render_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: Rgb<u8>) {
     draw_wireframe_triangle(
         projected[tri.0],
         projected[tri.1],
         projected[tri.2],
-        canvas,
+        frame,
         color,
     );
 }
