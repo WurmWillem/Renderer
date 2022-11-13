@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
-use image::{ImageBuffer, Rgb, RgbImage};
+use image::{Rgb, RgbImage};
 
 mod consts;
 mod instancing;
@@ -42,18 +42,15 @@ fn main() -> Result<(), Error> {
 
     let instances = vec![
         Instance::new(Model::Cube, Vec3::new(0., 0., 0.)),
-        //Instance::new(Model::Cube, Vec3::new(2.5, 0., -1.)),
+        Instance::new(Model::Cube, Vec3::new(2.5, 0., -1.)),
     ];
-    let p0 = Vec2::new(0., 0.);
-    let p1 = Vec2::new(150., 150.);
 
     event_loop.run(move |event, _, control_flow| {
-        // Draw the current frame
+        
         if let Event::RedrawRequested(_) = event {
             //show_individual_pixels(pixels.get_frame_mut());
-            draw_line(p0, p1, pixels.get_frame_mut(), GREEN);
             for instance in &instances {
-                //instance.Render(pixels.get_frame_mut());
+                instance.Render(pixels.get_frame_mut());
             }
 
             if pixels
@@ -99,24 +96,6 @@ fn show_individual_pixels(frame: &mut [u8]) {
         pixel.copy_from_slice(&rgba);
     }
 }
-
-/*fn main() {
-    let mut canvas: RgbImage = ImageBuffer::new(CANVAS_SIZE, CANVAS_SIZE);
-    canvas.fill(220);
-
-    let instances = vec![
-        Instance::new(Model::Cube, Vec3::new(0., 0., 0.)),
-        //Instance::new(Model::Cube, Vec3::new(2.5, 0., -1.)),
-    ];
-
-    for instance in &instances {
-        //instance.Render(&mut canvas);
-    }
-
-    
-
-    canvas.save("result.png").unwrap();
-}*/
 
 fn draw_shaded_triangle(
     mut p0: Vec2,
@@ -237,12 +216,12 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, frame: &mut [u8], color: Rgb<u8>) {
         for x in (x0 as i32)..(x1 as i32 + 1) {
             let x_to_draw = (x + CANVAS_SIZE as i32 / 2) as u32;
             let y_to_draw = (-ys[(x - x0 as i32) as usize] + CANVAS_SIZE as f32 / 2.) as u32;
-            //println!("{}", frame.len());
-            //println!("{}", x_y_to_i(x_to_draw, y_to_draw) * 4 + 3);
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4] = color.0[0];
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 1] = color.0[1];
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 2] = color.0[2];
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 3] = 0xff;
+
+            let x_y_to_i = x_y_to_i(x_to_draw, y_to_draw) * 4;
+            frame[x_y_to_i] = color.0[0];
+            frame[x_y_to_i + 1] = color.0[1];
+            frame[x_y_to_i + 2] = color.0[2];
+            frame[x_y_to_i + 3] = 0xff;
         }
     } else {
         if p0.y > p1.y {
@@ -258,16 +237,17 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, frame: &mut [u8], color: Rgb<u8>) {
             let x_to_draw = (xs[(y - y0 as i32) as usize] + CANVAS_SIZE as f32 / 2.) as u32;
             let y_to_draw = (-y + CANVAS_SIZE as i32 / 2) as u32;
 
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4] = color.0[0];
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 1] = color.0[1];
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 2] = color.0[2];
-            frame[x_y_to_i(x_to_draw, y_to_draw) * 4 + 3] = 0xff;
+            let x_y_to_i = x_y_to_i(x_to_draw, y_to_draw) * 4;
+            frame[x_y_to_i] = color.0[0];
+            frame[x_y_to_i + 1] = color.0[1];
+            frame[x_y_to_i + 2] = color.0[2];
+            frame[x_y_to_i + 3] = 0xff;
         }
     }
 }
 
 fn x_y_to_i(x: u32, y: u32) -> usize {
-    (y * x + x) as usize
+    (y * CANVAS_SIZE + x) as usize
 }
 
 fn draw_wireframe_triangle(p0: Vec2, p1: Vec2, p2: Vec2, frame: &mut [u8], color: Rgb<u8>) {
