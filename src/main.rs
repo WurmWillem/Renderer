@@ -3,13 +3,11 @@
 
 mod consts;
 mod instance;
-use cgmath::{Rad, Matrix};
 use consts::*;
-use instance::*;
+use instance::{Transform, *};
 
 use log::error;
-use pixels::wgpu::Color;
-use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Error, PixelsBuilder, SurfaceTexture};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -20,9 +18,8 @@ fn main() -> Result<(), Error> {
     env_logger::init();
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
-
     let window = {
-        let size = LogicalSize::new(CANVAS_SIZE as f64, CANVAS_SIZE as f64);
+        let size = LogicalSize::new(WINDOW_SIZE as f64, WINDOW_SIZE as f64);
         WindowBuilder::new()
             .with_title("Renderer")
             .with_inner_size(size)
@@ -30,25 +27,35 @@ fn main() -> Result<(), Error> {
             .build(&event_loop)
             .unwrap()
     };
+    let surface_texture = SurfaceTexture::new(WINDOW_SIZE, WINDOW_SIZE, &window);
+    let mut pixels = PixelsBuilder::new(CANVAS_SIZE, CANVAS_SIZE, surface_texture)
+        .enable_vsync(true)
+        .build()?;
 
-    let mut pixels = {
-        let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(CANVAS_SIZE, CANVAS_SIZE, surface_texture)?
-    };
-    pixels.set_clear_color(Color::BLACK);
+    //pixels.set_clear_color(Color::BLACK);
 
     let mut instances = vec![
         Instance::new(Model::Cube, Vec3::new(0., 0., 0.), 1.),
-        //Instance::new(Model::Cube, Vec3::new(2.5, 0., 0.), 1.),
+        Instance::new(Model::Cube, Vec3::new(2.5, 0., 0.), 1.),
     ];
+
+    let mut cam_trans = Transform::new(Vec3::new(0., 0., 0.), 1.);
+    let mut cam_is_current_trans = true;
+    let mut last_frame = std::time::Instant::now();
+    let mut frames_passed = 0;
+    let mut total_frame_time = 0.;
 
     event_loop.run(move |event, _, control_flow| {
         if let Event::RedrawRequested(_) = event {
+            total_frame_time += last_frame.elapsed().as_secs_f64();
+            last_frame = std::time::Instant::now();
+            frames_passed += 1;
             //show_individual_pixels(pixels.get_frame_mut());
-            pixels.get_frame_mut().fill(50);
+            let frame = pixels.get_frame_mut();
+            clear_screen(frame);
+
             for instance in &instances {
-                instance.Render(pixels.get_frame_mut());
+                instance.Render(frame, cam_trans);
             }
 
             if pixels
@@ -60,7 +67,6 @@ fn main() -> Result<(), Error> {
                 return;
             }
         }
-
         // Handle input events
         if input.update(&event) {
             // Close events
@@ -73,26 +79,60 @@ fn main() -> Result<(), Error> {
                 pixels.resize_surface(size.width, size.height);
             }
 
+            if input.mouse_pressed(0) {
+                pr(frames_passed as f64 / total_frame_time);
+                cam_is_current_trans = !cam_is_current_trans;
+            }
+
+            let trans_speed = TRANS_SPEED * last_frame.elapsed().as_secs_f64();
+
             if input.key_held(VirtualKeyCode::W) {
-                instances[0].trans.translation += Vec3::new(0.,0.,0.1);
+                let translation = Vec3::new(0., 0., trans_speed);
+                if cam_is_current_trans {
+                    cam_trans.translation += translation;
+                } else {
+                    instances[0].trans.translation += translation;
+                }
             }
             if input.key_held(VirtualKeyCode::A) {
-                instances[0].trans.translation += Vec3::new(-0.1,0.,0.);
+                let translation = Vec3::new(-trans_speed, 0., 0.);
+                if cam_is_current_trans {
+                    cam_trans.translation += translation;
+                } else {
+                    instances[0].trans.translation += translation;
+                }
             }
             if input.key_held(VirtualKeyCode::S) {
-                instances[0].trans.translation += Vec3::new(0.,0.,-0.1);
+                let translation = Vec3::new(0., 0., -trans_speed);
+                if cam_is_current_trans {
+                    cam_trans.translation += translation;
+                } else {
+                    instances[0].trans.translation += translation;
+                }
             }
             if input.key_held(VirtualKeyCode::D) {
-                instances[0].trans.translation += Vec3::new(0.1,0.,0.);
+                let translation = Vec3::new(trans_speed, 0., 0.);
+                if cam_is_current_trans {
+                    cam_trans.translation += translation;
+                } else {
+                    instances[0].trans.translation += translation;
+                }
             }
 
             if input.key_held(VirtualKeyCode::Q) {
-                instances[0].trans.scale += 0.1;
+                if cam_is_current_trans {
+                    cam_trans.scale += trans_speed;
+                } else {
+                    instances[0].trans.scale += trans_speed;
+                }
             }
             if input.key_held(VirtualKeyCode::R) {
-                instances[0].trans.rot += 5.;
+                if cam_is_current_trans {
+                    cam_trans.rot += trans_speed * 30.;
+                } else {
+                    instances[0].trans.rot += trans_speed * 30.;
+                }
             }
-            // Update internal state and request a redraw
             window.request_redraw();
         }
     });
@@ -197,9 +237,77 @@ fn swap<T: std::marker::Copy>(x0: &mut T, x1: &mut T) {
 }
 
 fn check_if_out_of_canvas(x: i32, y: i32) -> bool {
-    x < 0
-        || y < 0
-        || x >= CANVAS_SIZE as i32
-        || y >= CANVAS_SIZE as i32
-    
+    x < 0 || y < 0 || x >= CANVAS_SIZE as i32 || y >= CANVAS_SIZE as i32
+}
+
+fn clear_screen(frame: &mut [u8]) {
+    for pixel in frame.chunks_exact_mut(64) {
+        pixel[0] = 0x00; // R
+        pixel[1] = 0x00; // G
+        pixel[2] = 0x00; // B
+
+        pixel[4] = 0x00; // R
+        pixel[5] = 0x00; // G
+        pixel[6] = 0x00; // B
+
+        pixel[8] = 0x00; // R
+        pixel[9] = 0x00; // G
+        pixel[10] = 0x00; // B
+
+        pixel[12] = 0x00; // R
+        pixel[13] = 0x00; // G
+        pixel[14] = 0x00; // B
+
+        pixel[16] = 0x00; // R
+        pixel[17] = 0x00; // G
+        pixel[18] = 0x00; // B
+
+        pixel[20] = 0x00; // R
+        pixel[21] = 0x00; // G
+        pixel[22] = 0x00; // B
+
+        pixel[24] = 0x00; // R
+        pixel[25] = 0x00; // G
+        pixel[26] = 0x00; // B
+
+        pixel[28] = 0x00; // R
+        pixel[29] = 0x00; // G
+        pixel[30] = 0x00; // B
+
+        pixel[32] = 0x00; // R
+        pixel[33] = 0x00; // G
+        pixel[34] = 0x00; // B
+
+        pixel[36] = 0x00; // R
+        pixel[37] = 0x00; // G
+        pixel[38] = 0x00; // B
+
+        pixel[39] = 0x00; // R
+        pixel[40] = 0x00; // G
+        pixel[41] = 0x00; // B
+
+        pixel[43] = 0x00; // R
+        pixel[44] = 0x00; // G
+        pixel[45] = 0x00; // B
+
+        pixel[47] = 0x00; // R
+        pixel[48] = 0x00; // G
+        pixel[49] = 0x00; // B
+
+        pixel[51] = 0x00; // R
+        pixel[52] = 0x00; // G
+        pixel[53] = 0x00; // B
+
+        pixel[55] = 0x00; // R
+        pixel[56] = 0x00; // G
+        pixel[57] = 0x00; // B
+
+        pixel[58] = 0x00; // R
+        pixel[59] = 0x00; // G
+        pixel[60] = 0x00; // B
+
+        pixel[61] = 0x00; // G
+        pixel[62] = 0x00; // B
+        pixel[63] = 0x00; // B
+    }
 }

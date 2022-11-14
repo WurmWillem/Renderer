@@ -17,11 +17,11 @@ impl Instance {
             trans,
         }
     }
-    pub fn Render(&self, frame: &mut [u8]) {
+    pub fn Render(&self, frame: &mut [u8], cam_trans: Transform) {
         let mut projected = Vec::new();
         for vert in &self.verts {
             let mut vert = *vert;
-            self.trans.apply_transform(&mut vert);
+            self.trans.apply_transform(&mut vert, cam_trans);
             projected.push(project_vertex(vert));
         }
 
@@ -31,25 +31,26 @@ impl Instance {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {
     pub translation: Vec3,
     pub scale: f64,
     pub rot: f64,
 }
 impl Transform {
-    fn new(translation: Vec3, scale: f64) -> Self {
+    pub fn new(translation: Vec3, scale: f64) -> Self {
         Self {
             translation,
             scale,
-            rot: 0.
+            rot: 0.,
         }
     }
-    fn apply_transform(&self, vert: &mut Vec3) {
+    fn apply_transform(&self, vert: &mut Vec3, cam_trans: Transform) {
         let default_transl = Vec3::new(-2., 0., 7.);
-        let rot: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot));
+        let rot: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot + cam_trans.rot));
 
-        *vert = rot.rotate_vector(*vert) * self.scale;
-        *vert += self.translation + default_transl;
+        *vert = rot.rotate_vector(*vert) * (self.scale * cam_trans.scale);
+        *vert += self.translation + cam_trans.translation + default_transl;
     }
 }
 
@@ -118,7 +119,7 @@ fn viewport_to_canvas(x: f64, y: f64) -> Vec2 {
     )
 }
 
-fn pr<T: std::fmt::Display>(s: T) {
+pub fn pr<T: std::fmt::Display>(s: T) {
     println!("{}", s);
 }
 

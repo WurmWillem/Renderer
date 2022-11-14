@@ -19,7 +19,8 @@ pub const GREY: Color = Color {
     b: 0.01,
     a: 1.0,
 };
-
-pub const CANVAS_SIZE: u32 = 600;
+pub const TRANS_SPEED: f64 = 14.4;
+pub const WINDOW_SIZE: u32 = 600;
+pub const CANVAS_SIZE: u32 = 760;
 pub const VIEWPORT_SIZE: u32 = 1;
 pub const D: f64 = 1.;
