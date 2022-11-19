@@ -78,3 +78,44 @@ pub fn render_object(verts: &Vec<Vec3>, tri_indices: &Vec<Indices>, frame: &mut 
         render_triangle(*tri, &projected, frame, GREEN);
     }
 }
+
+fn clip_tri_against_plane(
+    triangles: &Vec<Indices>,
+    plane: &Plane,
+    verts: &Vertices,
+) -> Vec<Indices> {
+    let mut clipped_triangles = Vec::new();
+    for tri in triangles {
+        let clipped_tri = clip_triangle(*tri, plane, &verts);
+        if let Some(tri) = clipped_tri {
+            clipped_triangles.push(tri);
+        }
+    }
+    clipped_triangles
+}
+
+fn clip_triangle(tri: Indices, plane: &Plane, verts: &Vertices) -> Option<(usize, usize, usize)> {
+    let d0 = signed_dist(plane, verts[tri.0]);
+    let d1 = signed_dist(plane, verts[tri.1]);
+    let d2 = signed_dist(plane, verts[tri.2]);
+
+    if d0 >= 0. && d1 >= 0. && d2 >= 0. {
+        Some(tri)
+    } else {
+        
+        None
+    }
+    
+    /*else if d0 < 0. && d1 < 0. && d2 < 0. {
+        None
+    } else if (d0 >= 0. && d1 < 0. && d2 < 0.)
+        || (d0 < 0. && d1 >= 0. && d2 < 0.)
+        || (d0 < 0. && d1 < 0. && d2 >= 0.)
+    {
+        //Some(tri) 
+        None
+    } else {
+        //Some(tri)
+        None
+    }*/
+}

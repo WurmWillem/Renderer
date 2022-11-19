@@ -22,8 +22,9 @@ pub const GREY: Color = Color {
     b: 0.01,
     a: 1.0,
 };
-pub const TRANS_SPEED: f64 = 14.4;
-pub const WINDOW_SIZE: u32 = 600;
-pub const CANVAS_SIZE: u32 = 760;
+pub const TRANS_SPEED: f64 = 10.;
+pub const DEFAULT_TRANSL: Vec3 = Vec3::new(-2., 0., 7.);
+pub const WINDOW_SIZE: u32 = 720;
+pub const CANVAS_SIZE: u32 = 900;
 pub const VIEWPORT_SIZE: u32 = 1;
 pub const D: f64 = 1.;

@@ -1,8 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+mod clipping;
 mod consts;
 mod instance;
+use clipping::{clip_scene, Plane};
 use consts::*;
 use instance::{Transform, *};
 
@@ -38,10 +40,17 @@ fn main() -> Result<(), Error> {
         Instance::new(Model::Cube, Vec3::new(0., 0., 0.), 1.),
         Instance::new(Model::Cube, Vec3::new(2.5, 0., 0.), 1.),
     ];
+    let mut clipping_planes = vec![
+        Plane::new(Vec3::new(0., 0., 1.), -D),                  //near
+        Plane::new(Vec3::new(1. / 1.414, 0., 1. / 1.414), 0.),  //left
+        Plane::new(Vec3::new(-1. / 1.414, 0., 1. / 1.414), 0.), //right
+        Plane::new(Vec3::new(0., 1. / 1.414, 1. / 1.414), 0.),  //bottom
+        Plane::new(Vec3::new(0., 0., -1. / 1.414 / 1.414), 0.), //top
+    ];
 
     let mut cam_trans = Transform::new(Vec3::new(0., 0., 0.), 1.);
     let mut cam_is_current_trans = true;
-    
+
     let mut last_frame = std::time::Instant::now();
     let mut frames_passed = 0;
     let mut total_frame_time = 0.;
@@ -51,12 +60,23 @@ fn main() -> Result<(), Error> {
             total_frame_time += last_frame.elapsed().as_secs_f64();
             last_frame = std::time::Instant::now();
             frames_passed += 1;
-            //show_individual_pixels(pixels.get_frame_mut());
-            let frame = pixels.get_frame_mut();
-            clear_screen(frame);
+            
+            let screen_frame = pixels.get_frame_mut();
+            clear_screen(screen_frame);
 
-            for instance in &instances {
-                instance.Render(frame, cam_trans);
+            for plane in &mut clipping_planes {
+                //plane.update(cam_trans);
+            }
+
+            for instance in &mut instances {
+                instance
+                    .bounding_sphere
+                    .update_center(instance.trans.translation + cam_trans.translation);
+            }
+
+            let clipped_instances = clip_scene(&instances, &clipping_planes);
+            for instance in &clipped_instances {
+                instance.Render(screen_frame, cam_trans);
             }
 
             if pixels
@@ -87,12 +107,16 @@ fn main() -> Result<(), Error> {
 
             let trans_speed = TRANS_SPEED * last_frame.elapsed().as_secs_f64();
 
+            let mut transl_this_frame = Vec3::new(0., 0., 0.);
+            let mut rot_this_frame = 0.;
+            let mut scale_this_frame = 0.;
+
             if input.key_held(VirtualKeyCode::W) {
                 let translation = Vec3::new(0., 0., trans_speed);
                 if cam_is_current_trans {
-                    cam_trans.translation += translation;
+                    cam_trans.translation += -translation;
                 } else {
-                    instances[0].trans.translation += translation;
+                    transl_this_frame += translation;
                 }
             }
             if input.key_held(VirtualKeyCode::A) {
@@ -100,15 +124,15 @@ fn main() -> Result<(), Error> {
                 if cam_is_current_trans {
                     cam_trans.translation += translation;
                 } else {
-                    instances[0].trans.translation += translation;
+                    transl_this_frame += translation;
                 }
             }
             if input.key_held(VirtualKeyCode::S) {
                 let translation = Vec3::new(0., 0., -trans_speed);
                 if cam_is_current_trans {
-                    cam_trans.translation += translation;
+                    cam_trans.translation += -translation;
                 } else {
-                    instances[0].trans.translation += translation;
+                    transl_this_frame += translation;
                 }
             }
             if input.key_held(VirtualKeyCode::D) {
@@ -116,24 +140,29 @@ fn main() -> Result<(), Error> {
                 if cam_is_current_trans {
                     cam_trans.translation += translation;
                 } else {
-                    instances[0].trans.translation += translation;
+                    transl_this_frame += translation;
                 }
             }
 
             if input.key_held(VirtualKeyCode::Q) {
-                if cam_is_current_trans {
-                    cam_trans.scale += trans_speed;
-                } else {
-                    instances[0].trans.scale += trans_speed;
-                }
+                if !cam_is_current_trans {
+                    scale_this_frame += trans_speed;
+                } 
             }
             if input.key_held(VirtualKeyCode::R) {
                 if cam_is_current_trans {
                     cam_trans.rot += trans_speed * 30.;
                 } else {
-                    instances[0].trans.rot += trans_speed * 30.;
+                    rot_this_frame += trans_speed * 30.;
                 }
             }
+
+            for inst in &mut instances {
+                inst.trans.translation += transl_this_frame;
+                inst.trans.scale += scale_this_frame;
+                inst.trans.rot += rot_this_frame;
+            }
+
             window.request_redraw();
         }
     });
@@ -288,7 +317,7 @@ fn check_if_out_of_canvas(x: i32, y: i32) -> bool {
 }
 
 fn clear_screen(frame: &mut [u8]) {
-    for pixel in frame.chunks_exact_mut(64) {
+    for pixel in frame.chunks_exact_mut(100) {
         pixel[0] = 0x00; // R
         pixel[1] = 0x00; // G
         pixel[2] = 0x00; // B
@@ -329,32 +358,66 @@ fn clear_screen(frame: &mut [u8]) {
         pixel[37] = 0x00; // G
         pixel[38] = 0x00; // B
 
-        pixel[39] = 0x00; // R
         pixel[40] = 0x00; // G
         pixel[41] = 0x00; // B
+        pixel[42] = 0x00; // B
 
-        pixel[43] = 0x00; // R
         pixel[44] = 0x00; // G
         pixel[45] = 0x00; // B
+        pixel[46] = 0x00; // B
 
-        pixel[47] = 0x00; // R
         pixel[48] = 0x00; // G
         pixel[49] = 0x00; // B
+        pixel[50] = 0x00; // B
 
-        pixel[51] = 0x00; // R
         pixel[52] = 0x00; // G
         pixel[53] = 0x00; // B
+        pixel[54] = 0x00; // B
 
-        pixel[55] = 0x00; // R
-        pixel[56] = 0x00; // G
-        pixel[57] = 0x00; // B
+        pixel[56] = 0x00; // R
+        pixel[57] = 0x00; // G
+        pixel[58] = 0x00; // B
 
-        pixel[58] = 0x00; // R
-        pixel[59] = 0x00; // G
-        pixel[60] = 0x00; // B
-
+        pixel[60] = 0x00; // R
         pixel[61] = 0x00; // G
         pixel[62] = 0x00; // B
-        pixel[63] = 0x00; // B
+
+        pixel[64] = 0x00; // G
+        pixel[65] = 0x00; // B
+        pixel[66] = 0x00; // B
+
+        pixel[68] = 0x00; // G
+        pixel[69] = 0x00; // B
+        pixel[70] = 0x00; // B
+
+        pixel[72] = 0x00; // G
+        pixel[73] = 0x00; // B
+        pixel[74] = 0x00; // B
+
+        pixel[76] = 0x00; // G
+        pixel[77] = 0x00; // B
+        pixel[78] = 0x00; // B
+
+        pixel[80] = 0x00; // G
+        pixel[81] = 0x00; // B
+        pixel[82] = 0x00; // B
+
+        pixel[84] = 0x00; // G
+        pixel[85] = 0x00; // B
+        pixel[86] = 0x00; // B
+
+        pixel[88] = 0x00; // G
+        pixel[89] = 0x00; // B
+        pixel[90] = 0x00; // B
+
+        pixel[92] = 0x00; // G
+        pixel[93] = 0x00; // B
+        pixel[94] = 0x00; // B
+
+        pixel[96] = 0x00; // G
+        pixel[97] = 0x00; // B
+        pixel[98] = 0x00; // B
+
+        pixel[99] = 0x00; // G
     }
 }

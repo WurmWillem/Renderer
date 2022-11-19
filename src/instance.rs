@@ -1,25 +1,29 @@
-use crate::{consts::*, draw_wireframe_triangle, draw_triangle};
+use crate::{clipping::BoundingSphere, consts::*, draw_triangle, draw_wireframe_triangle};
 use cgmath::*;
 
+#[derive(Debug, Clone)]
 pub struct Instance {
     model: Model,
     verts: Vertices,
     triangles: Vec<Indices>,
+    pub bounding_sphere: BoundingSphere,
     pub trans: Transform,
 }
 impl Instance {
     pub fn new(model: Model, translation: Vec3, scale: f64) -> Self {
         let trans = Transform::new(translation, scale);
+        let verts = model.get_verts();
+        let bounding_sphere = BoundingSphere::new(&verts);
         Self {
             model,
-            verts: model.get_verts(),
+            verts,
             triangles: model.get_indices(),
+            bounding_sphere,
             trans,
         }
     }
     pub fn Render(&self, frame: &mut [u8], cam_trans: Transform) {
         let mut projected = Vec::new();
-
         for vert in &self.verts {
             let mut vert = *vert;
             self.trans.apply_transform(&mut vert, cam_trans);
@@ -34,8 +38,7 @@ impl Instance {
             //render_filled_triangle(*tri, &projected, frame, colors[i]);
             if i >= colors.len() - 1 {
                 i = 0;
-            }
-            else {
+            } else {
                 i += 1;
             }
         }
@@ -57,18 +60,21 @@ impl Transform {
         }
     }
     fn apply_transform(&self, vert: &mut Vec3, cam_trans: Transform) {
-        let default_transl = Vec3::new(-2., 0., 7.);
-        let rot_self: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot) / 3.);
-        let rot_cam: Basis3<f64> = Rotation3::from_angle_y(Deg(cam_trans.rot) / 3.);
+        let rot_self: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot));
+        let rot_cam: Basis3<f64> = Rotation3::from_angle_y(Deg(cam_trans.rot));
 
-        *vert = rot_self.rotate_vector(*vert) * (self.scale * cam_trans.scale);
-        //println!("{:?}", *vert);
-        *vert += self.translation + cam_trans.translation + default_transl;
-        *vert = rot_cam.rotate_vector(*vert)
+        *vert = rot_self.rotate_vector(*vert) * self.scale;
+        *vert += self.translation + cam_trans.translation + DEFAULT_TRANSL;
+        *vert = rot_cam.rotate_vector(*vert);
     }
 }
 
-fn render_wireframe_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: [u8; 3]) {
+fn render_wireframe_triangle(
+    tri: Indices,
+    projected: &Vec<Vec2>,
+    frame: &mut [u8],
+    color: [u8; 3],
+) {
     draw_wireframe_triangle(
         projected[tri.0],
         projected[tri.1],
@@ -86,8 +92,6 @@ fn render_filled_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8],
         color,
     );
 }
-
- 
 
 #[derive(Debug, Clone, Copy)]
 pub enum Model {
@@ -146,6 +150,10 @@ fn viewport_to_canvas(x: f64, y: f64) -> Vec2 {
 
 pub fn pr<T: std::fmt::Display>(s: T) {
     println!("{}", s);
+}
+
+pub fn pre<T: std::fmt::Debug>(s: T) {
+    println!("{:?}", s);
 }
 
 fn print_matrix(mat: Matrix4<f32>) {
