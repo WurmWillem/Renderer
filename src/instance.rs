@@ -34,8 +34,8 @@ impl Instance {
         let mut i = 0;
 
         for tri in &self.triangles {
-            render_wireframe_triangle(*tri, &projected, frame, colors[i]);
-            //render_filled_triangle(*tri, &projected, frame, colors[i]);
+            //render_wireframe_triangle(*tri, &projected, frame, colors[i]);
+            render_filled_triangle(*tri, &projected, frame, colors[i]);
             if i >= colors.len() - 1 {
                 i = 0;
             } else {

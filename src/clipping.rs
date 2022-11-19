@@ -1,6 +1,6 @@
 use crate::{
     consts::*,
-    instance::{Instance, Transform},
+    instance::{pr, pre, Instance},
 };
 use cgmath::*;
 
@@ -12,10 +12,6 @@ pub struct Plane {
 impl Plane {
     pub fn new(normal: Vec3, d: f64) -> Self {
         Self { normal, d }
-    }
-    pub fn update(&mut self, cam_trans: Transform) {
-        let rot_cam: Basis3<f64> = Rotation3::from_angle_y(Deg(cam_trans.rot));
-        self.normal = rot_cam.rotate_vector(self.normal);
     }
 }
 
@@ -52,8 +48,11 @@ impl BoundingSphere {
         (center, furthest_away)
     }
 
-    pub fn update_center(&mut self, trans: Vec3) {
+    pub fn update(&mut self, trans: Vec3, cam_rot: f64) {
+        let rot_cam: Basis3<f64> = Rotation3::from_angle_y(Deg(cam_rot));
         self.center = trans + self.orig_center + DEFAULT_TRANSL;
+        self.center = rot_cam.rotate_vector(self.center);
+        //pre(self.center);
     }
 }
 
@@ -81,8 +80,8 @@ fn clip_instance(inst: &Instance, planes: &Vec<Plane>) -> Option<Instance> {
 
 fn clip_instance_against_plane(inst: &Instance, plane: &Plane) -> Option<Instance> {
     let d = signed_dist(plane, inst.bounding_sphere.center);
-
     let r = inst.bounding_sphere.radius;
+
     if d > r {
         return Some(inst.clone());
     } else if d < -r {

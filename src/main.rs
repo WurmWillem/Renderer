@@ -38,9 +38,9 @@ fn main() -> Result<(), Error> {
 
     let mut instances = vec![
         Instance::new(Model::Cube, Vec3::new(0., 0., 0.), 1.),
-        Instance::new(Model::Cube, Vec3::new(2.5, 0., 0.), 1.),
+        //Instance::new(Model::Cube, Vec3::new(2.5, 0., 0.), 1.),
     ];
-    let mut clipping_planes = vec![
+    let clipping_planes = vec![
         Plane::new(Vec3::new(0., 0., 1.), -D),                  //near
         Plane::new(Vec3::new(1. / 1.414, 0., 1. / 1.414), 0.),  //left
         Plane::new(Vec3::new(-1. / 1.414, 0., 1. / 1.414), 0.), //right
@@ -49,7 +49,7 @@ fn main() -> Result<(), Error> {
     ];
 
     let mut cam_trans = Transform::new(Vec3::new(0., 0., 0.), 1.);
-    let mut cam_is_current_trans = true;
+    let mut cam_is_current_trans = false;
 
     let mut last_frame = std::time::Instant::now();
     let mut frames_passed = 0;
@@ -60,18 +60,15 @@ fn main() -> Result<(), Error> {
             total_frame_time += last_frame.elapsed().as_secs_f64();
             last_frame = std::time::Instant::now();
             frames_passed += 1;
-            
+
             let screen_frame = pixels.get_frame_mut();
             clear_screen(screen_frame);
 
-            for plane in &mut clipping_planes {
-                //plane.update(cam_trans);
-            }
-
             for instance in &mut instances {
-                instance
-                    .bounding_sphere
-                    .update_center(instance.trans.translation + cam_trans.translation);
+                instance.bounding_sphere.update(
+                    instance.trans.translation + cam_trans.translation,
+                    cam_trans.rot,
+                );
             }
 
             let clipped_instances = clip_scene(&instances, &clipping_planes);
@@ -147,7 +144,7 @@ fn main() -> Result<(), Error> {
             if input.key_held(VirtualKeyCode::Q) {
                 if !cam_is_current_trans {
                     scale_this_frame += trans_speed;
-                } 
+                }
             }
             if input.key_held(VirtualKeyCode::R) {
                 if cam_is_current_trans {
@@ -236,7 +233,6 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, frame: &mut [u8], color: [u8; 3]) {
         if p0.x > p1.x {
             swap(&mut p0, &mut p1);
         };
-        //check_if_out_of_canvas(p0, p1);
 
         let (x0, x1, y0, y1) = (p0.x, p1.x, p0.y, p1.y);
 
@@ -259,7 +255,6 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, frame: &mut [u8], color: [u8; 3]) {
         if p0.y > p1.y {
             swap(&mut p0, &mut p1);
         };
-        //check_if_out_of_canvas(p0, p1);
 
         let (x0, x1, y0, y1) = (p0.x, p1.x, p0.y, p1.y);
 
