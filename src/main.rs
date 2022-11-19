@@ -41,6 +41,7 @@ fn main() -> Result<(), Error> {
 
     let mut cam_trans = Transform::new(Vec3::new(0., 0., 0.), 1.);
     let mut cam_is_current_trans = true;
+    
     let mut last_frame = std::time::Instant::now();
     let mut frames_passed = 0;
     let mut total_frame_time = 0.;
@@ -136,6 +137,52 @@ fn main() -> Result<(), Error> {
             window.request_redraw();
         }
     });
+}
+
+fn draw_triangle(mut p0: Vec2, mut p1: Vec2, mut p2: Vec2, frame: &mut [u8], color: [u8; 3]) {
+    if p0.y > p1.y {
+        swap(&mut p0, &mut p1)
+    }
+    if p1.y > p2.y {
+        swap(&mut p1, &mut p2)
+    }
+    if p0.y > p1.y {
+        swap(&mut p0, &mut p1)
+    }
+    let (x0, y0, x1, y1, x2, y2) = (p0.x, p0.y, p1.x, p1.y, p2.x, p2.y);
+
+    let mut x01 = interpolate(y0, x0, y1, x1);
+    let mut x12 = interpolate(y1, x1, y2, x2);
+    let x02 = interpolate(y0, x0, y2, x2);
+
+    x01.remove(x01.len() - 1);
+    x01.append(&mut x12);
+    let x012 = x01;
+
+    let m = x02.len() / 2;
+    let (mut x_left, mut x_right) = (&x012, &x02);
+    if x012[m] > x02[m] {
+        (x_left, x_right) = (&x02, &x012);
+    }
+
+    for y in y0 as i32..y2 as i32 {
+        let y_to_draw = -y + CANVAS_SIZE as i32 / 2;
+        let y_index = (y as f64 - y0) as usize;
+
+        for x in x_left[y_index] as i32..x_right[y_index] as i32 {
+            let x_to_draw = x + CANVAS_SIZE as i32 / 2;
+
+            if check_if_out_of_canvas(x_to_draw, y_to_draw) {
+                continue;
+            }
+
+            let x_y_to_i = x_y_to_i(x_to_draw as u32, y_to_draw as u32) * 4;
+            frame[x_y_to_i] = color[0];
+            frame[x_y_to_i + 1] = color[1];
+            frame[x_y_to_i + 2] = color[2];
+            frame[x_y_to_i + 3] = 0xff;
+        }
+    }
 }
 
 fn show_individual_pixels(frame: &mut [u8]) {

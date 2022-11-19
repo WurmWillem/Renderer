@@ -1,4 +1,4 @@
-use crate::{consts::*, draw_wireframe_triangle};
+use crate::{consts::*, draw_wireframe_triangle, draw_triangle};
 use cgmath::*;
 
 pub struct Instance {
@@ -19,14 +19,25 @@ impl Instance {
     }
     pub fn Render(&self, frame: &mut [u8], cam_trans: Transform) {
         let mut projected = Vec::new();
+
         for vert in &self.verts {
             let mut vert = *vert;
             self.trans.apply_transform(&mut vert, cam_trans);
             projected.push(project_vertex(vert));
         }
 
+        let colors = vec![WHITE, GREEN, DARK_GREEN, BCK, BLAK, BLCK];
+        let mut i = 0;
+
         for tri in &self.triangles {
-            render_triangle(*tri, &projected, frame, GREEN);
+            render_wireframe_triangle(*tri, &projected, frame, colors[i]);
+            //render_filled_triangle(*tri, &projected, frame, colors[i]);
+            if i >= colors.len() - 1 {
+                i = 0;
+            }
+            else {
+                i += 1;
+            }
         }
     }
 }
@@ -47,14 +58,17 @@ impl Transform {
     }
     fn apply_transform(&self, vert: &mut Vec3, cam_trans: Transform) {
         let default_transl = Vec3::new(-2., 0., 7.);
-        let rot: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot + cam_trans.rot));
+        let rot_self: Basis3<f64> = Rotation3::from_angle_y(Deg(self.rot) / 3.);
+        let rot_cam: Basis3<f64> = Rotation3::from_angle_y(Deg(cam_trans.rot) / 3.);
 
-        *vert = rot.rotate_vector(*vert) * (self.scale * cam_trans.scale);
+        *vert = rot_self.rotate_vector(*vert) * (self.scale * cam_trans.scale);
+        //println!("{:?}", *vert);
         *vert += self.translation + cam_trans.translation + default_transl;
+        *vert = rot_cam.rotate_vector(*vert)
     }
 }
 
-fn render_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: [u8; 3]) {
+fn render_wireframe_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: [u8; 3]) {
     draw_wireframe_triangle(
         projected[tri.0],
         projected[tri.1],
@@ -63,6 +77,17 @@ fn render_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color:
         color,
     );
 }
+fn render_filled_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: [u8; 3]) {
+    draw_triangle(
+        projected[tri.0],
+        projected[tri.1],
+        projected[tri.2],
+        frame,
+        color,
+    );
+}
+
+ 
 
 #[derive(Debug, Clone, Copy)]
 pub enum Model {
