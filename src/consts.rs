@@ -8,6 +8,7 @@ pub type Mat4 = Matrix4<f64>;
 pub type Vertices = Vec<Vec3>;
 pub type Indices = (usize, usize, usize);
 pub type Shade = (f32, f32, f32);
+pub type Buffer = Vec<Vec<Option<f64>>>;
 
 pub const WHITE: [u8; 3] = [255, 255, 255];
 pub const GREEN: [u8; 3] = [0, 255, 0];

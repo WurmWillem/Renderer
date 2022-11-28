@@ -1,4 +1,4 @@
-use crate::{clipping::BoundingSphere, consts::*, draw_triangle, draw_wireframe_triangle};
+use crate::{clipping::BoundingSphere, consts::*, draw_line, draw_triangle};
 use cgmath::*;
 
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ impl Instance {
             trans,
         }
     }
-    pub fn Render(&self, frame: &mut [u8], cam_trans: Transform) {
+    pub fn Render(&self, frame: &mut [u8], cam_trans: Transform, depth_buffer: &mut Buffer) {
         let mut projected = Vec::new();
         for vert in &self.verts {
             let mut vert = *vert;
@@ -35,7 +35,14 @@ impl Instance {
 
         for tri in &self.triangles {
             //render_wireframe_triangle(*tri, &projected, frame, colors[i]);
-            render_filled_triangle(*tri, &projected, frame, colors[i]);
+            render_filled_triangle(
+                *tri,
+                &projected,
+                &self.verts,
+                depth_buffer,
+                frame,
+                colors[i],
+            );
             if i >= colors.len() - 1 {
                 i = 0;
             } else {
@@ -83,14 +90,30 @@ fn render_wireframe_triangle(
         color,
     );
 }
-fn render_filled_triangle(tri: Indices, projected: &Vec<Vec2>, frame: &mut [u8], color: [u8; 3]) {
+fn render_filled_triangle(
+    tri: Indices,
+    projected: &Vec<Vec2>,
+    verts: &Vertices,
+    depth_buffer: &mut Buffer,
+    frame: &mut [u8],
+    color: [u8; 3],
+) {
+    let verts_z = (verts[tri.0].z, verts[tri.1].z, verts[tri.2].z);
     draw_triangle(
         projected[tri.0],
         projected[tri.1],
         projected[tri.2],
+        verts_z,
+        depth_buffer,
         frame,
         color,
     );
+}
+
+fn draw_wireframe_triangle(p0: Vec2, p1: Vec2, p2: Vec2, frame: &mut [u8], color: [u8; 3]) {
+    draw_line(p0, p1, frame, color);
+    draw_line(p1, p2, frame, color);
+    draw_line(p2, p0, frame, color);
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -48,6 +48,8 @@ fn main() -> Result<(), Error> {
         Plane::new(Vec3::new(0., 0., -1. / 1.414 / 1.414), 0.), //top
     ];
 
+    let mut depth_buffer: Buffer = vec![vec![None; CANVAS_SIZE as usize]; CANVAS_SIZE as usize];
+
     let mut cam_trans = Transform::new(Vec3::new(0., 0., 0.), 1.);
     let mut cam_is_current_trans = false;
 
@@ -73,7 +75,7 @@ fn main() -> Result<(), Error> {
 
             let clipped_instances = clip_scene(&instances, &clipping_planes);
             for instance in &clipped_instances {
-                instance.Render(screen_frame, cam_trans);
+                instance.Render(screen_frame, cam_trans, &mut depth_buffer);
             }
 
             if pixels
@@ -165,15 +167,27 @@ fn main() -> Result<(), Error> {
     });
 }
 
-fn draw_triangle(mut p0: Vec2, mut p1: Vec2, mut p2: Vec2, frame: &mut [u8], color: [u8; 3]) {
+fn draw_triangle(
+    mut p0: Vec2,
+    mut p1: Vec2,
+    mut p2: Vec2,
+    verts_z: (f64, f64, f64),
+    depth_buffer: &mut Buffer,
+    frame: &mut [u8],
+    color: [u8; 3],
+) {
+    let (mut z0, mut z1, mut z2) = (verts_z.0, verts_z.1, verts_z.2);
     if p0.y > p1.y {
-        swap(&mut p0, &mut p1)
+        swap(&mut p0, &mut p1);
+        swap(&mut z0, &mut z1);
     }
     if p1.y > p2.y {
-        swap(&mut p1, &mut p2)
+        swap(&mut p1, &mut p2);
+        swap(&mut z1, &mut z2);
     }
     if p0.y > p1.y {
-        swap(&mut p0, &mut p1)
+        swap(&mut p0, &mut p1);
+        swap(&mut z0, &mut z1);
     }
     let (x0, y0, x1, y1, x2, y2) = (p0.x, p0.y, p1.x, p1.y, p2.x, p2.y);
 
@@ -181,19 +195,35 @@ fn draw_triangle(mut p0: Vec2, mut p1: Vec2, mut p2: Vec2, frame: &mut [u8], col
     let mut x12 = interpolate(y1, x1, y2, x2);
     let x02 = interpolate(y0, x0, y2, x2);
 
+    let mut z01 = interpolate(y0, z0, y1, z1);
+    let mut z12 = interpolate(y1, z1, y2, z2);
+    let z02 = interpolate(y0, z0, y2, z2);
+
     x01.remove(x01.len() - 1);
     x01.append(&mut x12);
     let x012 = x01;
 
+    z01.remove(z01.len() - 1);
+    z01.append(&mut z12);
+    let z012 = z01;
+
     let m = x02.len() / 2;
     let (mut x_left, mut x_right) = (&x012, &x02);
+    let (mut z_left, mut z_right) = (&z012, &z02);
     if x012[m] > x02[m] {
         (x_left, x_right) = (&x02, &x012);
+        (z_left, z_right) = (&z02, &z012);
     }
 
     for y in y0 as i32..y2 as i32 {
         let y_to_draw = -y + CANVAS_SIZE as i32 / 2;
         let y_index = (y as f64 - y0) as usize;
+        let z_scan = interpolate(
+            x_left[y_index],
+            z_left[y_index],
+            x_right[y_index],
+            z_right[y_index],
+        );
 
         for x in x_left[y_index] as i32..x_right[y_index] as i32 {
             let x_to_draw = x + CANVAS_SIZE as i32 / 2;
@@ -201,7 +231,12 @@ fn draw_triangle(mut p0: Vec2, mut p1: Vec2, mut p2: Vec2, frame: &mut [u8], col
             if check_if_out_of_canvas(x_to_draw, y_to_draw) {
                 continue;
             }
-
+            if let Some(z_buffer) = depth_buffer[y_to_draw as usize][x_to_draw as usize] {
+                if z_scan[(x as f64 - x_left[y_index]) as usize] > z_buffer {
+                    continue;
+                }
+            }
+            depth_buffer[y_to_draw as usize][x_to_draw as usize] = Some(z_scan[(x as f64 - x_left[y_index]) as usize]);
             let x_y_to_i = x_y_to_i(x_to_draw as u32, y_to_draw as u32) * 4;
             frame[x_y_to_i] = color[0];
             frame[x_y_to_i + 1] = color[1];
@@ -276,16 +311,6 @@ fn draw_line(mut p0: Vec2, mut p1: Vec2, frame: &mut [u8], color: [u8; 3]) {
     }
 }
 
-fn x_y_to_i(x: u32, y: u32) -> usize {
-    (y * CANVAS_SIZE + x) as usize
-}
-
-fn draw_wireframe_triangle(p0: Vec2, p1: Vec2, p2: Vec2, frame: &mut [u8], color: [u8; 3]) {
-    draw_line(p0, p1, frame, color);
-    draw_line(p1, p2, frame, color);
-    draw_line(p2, p0, frame, color);
-}
-
 fn interpolate(i0: f64, d0: f64, i1: f64, d1: f64) -> Vec<f64> {
     if i0 as i32 == i1 as i32 {
         return vec![d0];
@@ -301,14 +326,18 @@ fn interpolate(i0: f64, d0: f64, i1: f64, d1: f64) -> Vec<f64> {
     values
 }
 
-fn swap<T: std::marker::Copy>(x0: &mut T, x1: &mut T) {
-    let temp = *x0;
-    *x0 = *x1;
-    *x1 = temp;
+fn x_y_to_i(x: u32, y: u32) -> usize {
+    (y * CANVAS_SIZE + x) as usize
 }
 
 fn check_if_out_of_canvas(x: i32, y: i32) -> bool {
     x < 0 || y < 0 || x >= CANVAS_SIZE as i32 || y >= CANVAS_SIZE as i32
+}
+
+fn swap<T: std::marker::Copy>(x0: &mut T, x1: &mut T) {
+    let temp = *x0;
+    *x0 = *x1;
+    *x1 = temp;
 }
 
 fn clear_screen(frame: &mut [u8]) {

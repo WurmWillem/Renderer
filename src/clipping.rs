@@ -1,7 +1,4 @@
-use crate::{
-    consts::*,
-    instance::{pr, pre, Instance},
-};
+use crate::{consts::*, instance::Instance};
 use cgmath::*;
 
 #[derive(Debug, Clone, Copy)]
