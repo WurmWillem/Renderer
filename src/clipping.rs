@@ -1,6 +1,6 @@
 use crate::{
     consts::*,
-    instance::{pr, pre, Instance},
+    instance::{Instance},
 };
 use cgmath::*;
 
